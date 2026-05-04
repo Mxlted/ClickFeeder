@@ -1,14 +1,25 @@
 # ClickFeeder
 
-A client-side Fabric mod for Minecraft 26.1.2. Right-click with breeding food in your hand to instantly feed every breedable animal within reach. Hotbar auto-switching and inventory restock keep you going without breaking flow.
+A client-side Fabric mod for Minecraft 26.1.2. Right-click with breeding food in your hand to instantly feed every breedable animal within reach. Automatic hotbar switching and inventory restocking keep you going without breaking flow.
 
 ## What it does
 
 - Hold any breeding food (wheat, carrots, seeds, beetroot, etc.)
 - Right-click into the air (the **Use Item** keybind)
 - All feedable animals within a **5-block radius** get fed at once
-- Automatically cycles through hotbar slots when your hand runs out
-- Pulls matching food from your main inventory into empty hotbar slots
+- Automatically switches between hotbar slots when your current stack runs out
+- Pulls matching food from your main inventory into the hotbar when needed
+- Pre-calculates available food and animals before feeding to avoid wasted actions
+- Limits to 20 animals per click to prevent server overload
+
+## How it works
+
+1. On right-click, scans for breedable animals (babies or adults not in love mode)
+2. Counts total available food across your inventory
+3. Feeds animals one by one, automatically restocking your hand:
+   - First uses food already in hotbar slots
+   - Then swaps food from main inventory into hotbar
+4. Stops when all nearby animals are fed or food runs out
 
 ## Requirements
 
