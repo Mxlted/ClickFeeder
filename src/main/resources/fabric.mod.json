@@ -4,6 +4,7 @@
     "version": "${version}",
     "name": "ClickFeeder",
     "description": "Right-click with breeding food to feed all nearby animals in range. Auto-restocks from inventory when hotbar runs out.",
+    "icon": "assets/clickfeeder/icon.png",
     "authors": ["User"],
     "contact": {},
     "license": "MIT",
