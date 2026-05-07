@@ -1,13 +1,19 @@
 plugins {
-    id "net.fabricmc.fabric-loom" version "1.15.+"
+    id "net.fabricmc.fabric-loom" version "1.15.5"
     id "maven-publish"
 }
 
-version = project.mod_version
+def targetJavaVersion = Integer.parseInt(project.java_version)
+def archiveBaseName = project.archives_base_name
+def modVersion = project.mod_version
+def minecraftVersion = project.minecraft_version
+def loaderVersion = project.loader_version
+
+version = modVersion
 group = project.maven_group
 
 base {
-    archivesName = project.archives_base_name
+    archivesName = archiveBaseName
 }
 
 repositories {
@@ -22,32 +28,32 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(targetJavaVersion)
     }
     withSourcesJar()
 }
 
 processResources {
-    inputs.property "version", project.version
-    inputs.property "minecraft_version", project.minecraft_version
-    inputs.property "loader_version", project.loader_version
+    inputs.property "version", modVersion
+    inputs.property "minecraft_version", minecraftVersion
+    inputs.property "loader_version", loaderVersion
 
     filesMatching("fabric.mod.json") {
         expand(
-            "version": project.version,
-            "minecraft_version": project.minecraft_version,
-            "loader_version": project.loader_version
+            "version": modVersion,
+            "minecraft_version": minecraftVersion,
+            "loader_version": loaderVersion
         )
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
-    options.release = 25
+    options.release = targetJavaVersion
 }
 
 jar {
     from("LICENSE") {
-        rename { "${it}_${project.base.archivesName.get()}" }
+        rename { "${it}_${archiveBaseName}" }
     }
 }

@@ -19,7 +19,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class ClickFeeder implements ClientModInitializer {
@@ -41,24 +41,26 @@ public class ClickFeeder implements ClientModInitializer {
                 return InteractionResult.PASS;
             }
 
-            ItemStack held = player.getItemInHand(hand);
+            if (!(player instanceof LocalPlayer localPlayer)) {
+                return InteractionResult.PASS;
+            }
+
+            ItemStack held = localPlayer.getMainHandItem();
             if (held.isEmpty()) {
                 return InteractionResult.PASS;
             }
 
             Minecraft mc = Minecraft.getInstance();
-            LocalPlayer localPlayer = mc.player;
             MultiPlayerGameMode gameMode = mc.gameMode;
-            if (localPlayer == null || gameMode == null) {
-                return InteractionResult.PASS;
-            }
-
-            List<Animal> animals = findFeedableAnimals(world, localPlayer, held);
-            if (animals.isEmpty()) {
+            if (mc.player != localPlayer || gameMode == null || localPlayer.connection == null) {
                 return InteractionResult.PASS;
             }
 
             Item foodItem = held.getItem();
+            List<Animal> animals = findFeedableAnimals(world, localPlayer, held);
+            if (animals.isEmpty()) {
+                return InteractionResult.PASS;
+            }
 
             int availableFood = countAvailableFood(localPlayer.getInventory(), foodItem);
             int animalsToFeed = Math.min(animals.size(), Math.min(availableFood, MAX_FEEDS_PER_CLICK));
@@ -67,118 +69,129 @@ public class ClickFeeder implements ClientModInitializer {
                 return InteractionResult.PASS;
             }
 
-            List<Integer> foodSlots = findAllFoodSlots(localPlayer.getInventory(), foodItem);
-
             int feedCount = 0;
-            int currentFoodSlotIndex = 0;
 
             for (Animal animal : animals) {
                 if (feedCount >= animalsToFeed) {
                     break;
                 }
 
-                if (animal.isRemoved() || !animal.isAlive()) {
+                if (!isTargetableAnimal(animal, localPlayer)) {
                     continue;
                 }
 
-                if (animal.distanceToSqr(localPlayer) > FEED_RADIUS_SQR) {
-                    continue;
+                if (!ensureFoodInMainHand(localPlayer, gameMode, foodItem)) {
+                    break;
                 }
 
                 ItemStack handStack = localPlayer.getMainHandItem();
-                if (handStack.isEmpty() || handStack.getItem() != foodItem) {
-                    if (currentFoodSlotIndex >= foodSlots.size()) {
-                        break;
-                    }
-
-                    int nextFoodSlot = foodSlots.get(currentFoodSlotIndex);
-                    while (currentFoodSlotIndex < foodSlots.size() &&
-                           localPlayer.getInventory().getItem(nextFoodSlot).isEmpty()) {
-                        currentFoodSlotIndex++;
-                        if (currentFoodSlotIndex < foodSlots.size()) {
-                            nextFoodSlot = foodSlots.get(currentFoodSlotIndex);
-                        }
-                    }
-
-                    if (currentFoodSlotIndex >= foodSlots.size()) {
-                        break;
-                    }
-
-                    nextFoodSlot = foodSlots.get(currentFoodSlotIndex);
-
-                    if (nextFoodSlot < HOTBAR_SIZE) {
-                        switchToSlot(localPlayer, nextFoodSlot);
-                    } else {
-                        int targetHotbarSlot = findBestHotbarSlot(localPlayer.getInventory(), foodItem);
-                        swapInventoryToHotbar(localPlayer, gameMode, nextFoodSlot, targetHotbarSlot);
-                        switchToSlot(localPlayer, targetHotbarSlot);
-                    }
-
-                    handStack = localPlayer.getMainHandItem();
-                    if (handStack.isEmpty() || handStack.getItem() != foodItem) {
-                        break;
-                    }
+                if (!canFeedAnimal(animal, localPlayer, handStack)) {
+                    continue;
                 }
 
-                gameMode.interact(localPlayer, animal, new EntityHitResult(animal), InteractionHand.MAIN_HAND);
-                feedCount++;
-
-                ItemStack afterInteract = localPlayer.getMainHandItem();
-                if (afterInteract.isEmpty() || afterInteract.getItem() != foodItem) {
-                    currentFoodSlotIndex++;
+                InteractionResult result = gameMode.interact(
+                    localPlayer,
+                    animal,
+                    new EntityHitResult(animal),
+                    InteractionHand.MAIN_HAND
+                );
+                if (result.consumesAction()) {
+                    feedCount++;
                 }
             }
 
-            return InteractionResult.FAIL;
+            return feedCount > 0 ? InteractionResult.FAIL : InteractionResult.PASS;
         });
     }
 
     private static List<Animal> findFeedableAnimals(Level world, LocalPlayer player, ItemStack food) {
         AABB box = player.getBoundingBox().inflate(FEED_RADIUS);
-        return world.getEntitiesOfClass(Animal.class, box, animal ->
-            animal.isAlive()
-                && !animal.isRemoved()
-                && animal.isFood(food)
-                && (animal.isBaby() || !animal.isInLove())
+        List<Animal> animals = world.getEntitiesOfClass(
+            Animal.class,
+            box,
+            animal -> canFeedAnimal(animal, player, food)
         );
+        animals.sort(Comparator.comparingDouble(animal -> animal.distanceToSqr(player)));
+        return animals;
+    }
+
+    private static boolean canFeedAnimal(Animal animal, LocalPlayer player, ItemStack food) {
+        return isTargetableAnimal(animal, player) && animal.isFood(food);
+    }
+
+    private static boolean isTargetableAnimal(Animal animal, LocalPlayer player) {
+        return animal.isAlive()
+            && !animal.isRemoved()
+            && animal.distanceToSqr(player) <= FEED_RADIUS_SQR
+            && (animal.isBaby() || !animal.isInLove());
     }
 
     private static int countAvailableFood(Inventory inv, Item foodItem) {
         int count = 0;
         for (int i = 0; i < INVENTORY_SIZE; i++) {
             ItemStack stack = inv.getItem(i);
-            if (stack.getItem() == foodItem) {
+            if (isFoodStack(stack, foodItem)) {
                 count += stack.getCount();
             }
         }
         return count;
     }
 
-    private static List<Integer> findAllFoodSlots(Inventory inv, Item foodItem) {
-        List<Integer> slots = new ArrayList<>();
+    private static boolean ensureFoodInMainHand(LocalPlayer player, MultiPlayerGameMode gameMode, Item foodItem) {
+        if (isFoodStack(player.getMainHandItem(), foodItem)) {
+            return true;
+        }
+
+        Inventory inv = player.getInventory();
+        int hotbarSlot = findFoodInHotbar(inv, foodItem);
+        if (hotbarSlot >= 0) {
+            return switchToSlot(player, hotbarSlot) && isFoodStack(player.getMainHandItem(), foodItem);
+        }
+
+        int inventorySlot = findFoodInInventory(inv, foodItem);
+        if (inventorySlot < 0) {
+            return false;
+        }
+
+        int targetHotbarSlot = findBestHotbarSlot(inv, foodItem);
+        if (!swapInventoryToHotbar(player, gameMode, inventorySlot, targetHotbarSlot)) {
+            return false;
+        }
+
+        return switchToSlot(player, targetHotbarSlot) && isFoodStack(player.getMainHandItem(), foodItem);
+    }
+
+    private static int findFoodInHotbar(Inventory inv, Item foodItem) {
         int selected = inv.getSelectedSlot();
 
-        if (inv.getItem(selected).getItem() == foodItem) {
-            slots.add(selected);
+        if (isHotbarSlot(selected) && isFoodStack(inv.getItem(selected), foodItem)) {
+            return selected;
         }
 
         for (int i = 0; i < HOTBAR_SIZE; i++) {
-            if (i != selected && inv.getItem(i).getItem() == foodItem) {
-                slots.add(i);
+            if (i != selected && isFoodStack(inv.getItem(i), foodItem)) {
+                return i;
             }
         }
 
+        return -1;
+    }
+
+    private static int findFoodInInventory(Inventory inv, Item foodItem) {
         for (int i = HOTBAR_SIZE; i < INVENTORY_SIZE; i++) {
-            if (inv.getItem(i).getItem() == foodItem) {
-                slots.add(i);
+            if (isFoodStack(inv.getItem(i), foodItem)) {
+                return i;
             }
         }
-
-        return slots;
+        return -1;
     }
 
     private static int findBestHotbarSlot(Inventory inv, Item foodItem) {
         int selected = inv.getSelectedSlot();
+
+        if (isHotbarSlot(selected) && !isFoodStack(inv.getItem(selected), foodItem)) {
+            return selected;
+        }
 
         for (int i = 0; i < HOTBAR_SIZE; i++) {
             if (inv.getItem(i).isEmpty()) {
@@ -186,28 +199,50 @@ public class ClickFeeder implements ClientModInitializer {
             }
         }
 
-        ItemStack handStack = inv.getItem(selected);
-        if (handStack.isEmpty() || handStack.getItem() != foodItem) {
-            return selected;
-        }
-
         for (int i = 0; i < HOTBAR_SIZE; i++) {
-            if (i != selected && inv.getItem(i).getItem() != foodItem) {
+            if (i != selected && !isFoodStack(inv.getItem(i), foodItem)) {
                 return i;
             }
         }
 
-        return selected;
+        return isHotbarSlot(selected) ? selected : 0;
     }
 
-    private static void switchToSlot(LocalPlayer player, int slot) {
+    private static boolean switchToSlot(LocalPlayer player, int slot) {
+        if (!isHotbarSlot(slot) || player.connection == null) {
+            return false;
+        }
+
+        if (player.getInventory().getSelectedSlot() == slot) {
+            return true;
+        }
+
         player.getInventory().setSelectedSlot(slot);
         player.connection.send(new ServerboundSetCarriedItemPacket(slot));
+        return player.getInventory().getSelectedSlot() == slot;
     }
 
-    private static void swapInventoryToHotbar(LocalPlayer player, MultiPlayerGameMode gameMode, int inventorySlot, int hotbarSlot) {
+    private static boolean swapInventoryToHotbar(
+        LocalPlayer player,
+        MultiPlayerGameMode gameMode,
+        int inventorySlot,
+        int hotbarSlot
+    ) {
+        if (inventorySlot < HOTBAR_SIZE || inventorySlot >= INVENTORY_SIZE || !isHotbarSlot(hotbarSlot)) {
+            return false;
+        }
+
         int containerId = player.inventoryMenu.containerId;
         int containerSlot = inventorySlot;
         gameMode.handleContainerInput(containerId, containerSlot, hotbarSlot, ContainerInput.SWAP, player);
+        return true;
+    }
+
+    private static boolean isFoodStack(ItemStack stack, Item foodItem) {
+        return !stack.isEmpty() && stack.getItem() == foodItem;
+    }
+
+    private static boolean isHotbarSlot(int slot) {
+        return slot >= 0 && slot < HOTBAR_SIZE;
     }
 }
