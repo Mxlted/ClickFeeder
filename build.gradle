@@ -7,8 +7,10 @@ def targetJavaVersion = Integer.parseInt(project.java_version)
 def archiveBaseName = project.archives_base_name
 def modVersion = project.mod_version
 def minecraftVersion = project.minecraft_version
+def minecraftVersionRange = project.minecraft_version_range
 def loaderVersion = project.loader_version
 def fabricVersion = project.fabric_version
+def fabricApiDependency = project.fabric_api_dependency
 def javaVersion = project.java_version
 
 version = modVersion
@@ -39,16 +41,20 @@ java {
 processResources {
     inputs.property "version", modVersion
     inputs.property "minecraft_version", minecraftVersion
+    inputs.property "minecraft_version_range", minecraftVersionRange
     inputs.property "loader_version", loaderVersion
     inputs.property "fabric_version", fabricVersion
+    inputs.property "fabric_api_dependency", fabricApiDependency
     inputs.property "java_version", javaVersion
 
     filesMatching("fabric.mod.json") {
         expand(
             "version": modVersion,
             "minecraft_version": minecraftVersion,
+            "minecraft_version_range": minecraftVersionRange,
             "loader_version": loaderVersion,
             "fabric_version": fabricVersion,
+            "fabric_api_dependency": fabricApiDependency,
             "java_version": javaVersion
         )
     }
