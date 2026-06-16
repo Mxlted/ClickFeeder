@@ -1,25 +1,28 @@
 # ClickFeeder
 
-A client-side Fabric mod for Minecraft 26.2. Right-click with breeding food in your hand to instantly feed every breedable animal within reach. Automatic hotbar switching and inventory restocking keep you going without breaking flow.
+A client-side Fabric mod for Minecraft 26.2. Right-click with breeding food in your hand to feed eligible nearby adult animals within reach. Baby animals are ignored so food is not wasted speeding up growth. Automatic hotbar switching and inventory restocking keep you going without breaking flow.
 
 ## What it does
 
 - Hold any breeding food (wheat, carrots, seeds, beetroot, etc.)
 - Right-click into the air (the **Use Item** keybind)
-- All feedable animals within a **5-block radius** get fed at once
+- Up to 20 eligible adult animals within a **5-block radius** get handled per click
+- Baby animals are skipped before food counting, hotbar switching, restocking, or interaction
 - Automatically switches between hotbar slots when your current stack runs out
 - Pulls matching food from your main inventory into the hotbar when needed
-- Pre-calculates available food and animals before feeding to avoid wasted actions
+- Cancels the original item-use when it handles a feed batch so edible food is not eaten after a stale target
 - Limits to 20 animals per click to prevent server overload
 
 ## How it works
 
-1. On right-click, scans for breedable animals (babies or adults not in love mode)
+1. On right-click, scans for nearby adult animals that can breed with the held food
 2. Counts total available food across your inventory
 3. Feeds animals one by one, automatically restocking your hand:
    - First uses food already in hotbar slots
    - Then swaps food from main inventory into hotbar
-4. Stops when all nearby animals are fed or food runs out
+4. Skips adult animals this client just fed for the normal love-mode window
+5. Treats clicks with no valid adult targets as normal right-clicks
+6. Stops when all valid adults are handled or food runs out
 
 ## Requirements
 

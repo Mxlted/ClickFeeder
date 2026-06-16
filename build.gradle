@@ -8,6 +8,8 @@ def archiveBaseName = project.archives_base_name
 def modVersion = project.mod_version
 def minecraftVersion = project.minecraft_version
 def loaderVersion = project.loader_version
+def fabricVersion = project.fabric_version
+def javaVersion = project.java_version
 
 version = modVersion
 group = project.maven_group
@@ -38,12 +40,16 @@ processResources {
     inputs.property "version", modVersion
     inputs.property "minecraft_version", minecraftVersion
     inputs.property "loader_version", loaderVersion
+    inputs.property "fabric_version", fabricVersion
+    inputs.property "java_version", javaVersion
 
     filesMatching("fabric.mod.json") {
         expand(
             "version": modVersion,
             "minecraft_version": minecraftVersion,
-            "loader_version": loaderVersion
+            "loader_version": loaderVersion,
+            "fabric_version": fabricVersion,
+            "java_version": javaVersion
         )
     }
 }
