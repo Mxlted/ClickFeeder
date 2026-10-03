@@ -98,10 +98,10 @@ public class ClickFeeder implements ClientModInitializer {
                 return InteractionResult.PASS;
             }
 
-            int feedCount = 0;
+            int attempts = 0;
 
             for (Animal animal : animals) {
-                if (feedCount >= animalsToFeed) {
+                if (attempts >= animalsToFeed) {
                     break;
                 }
 
@@ -119,6 +119,7 @@ public class ClickFeeder implements ClientModInitializer {
                 }
 
                 boolean adultFeedAttempt = !animal.canAgeUp();
+                attempts++;
                 InteractionResult result = gameMode.interact(
                     localPlayer,
                     animal,
@@ -126,7 +127,6 @@ public class ClickFeeder implements ClientModInitializer {
                     InteractionHand.MAIN_HAND
                 );
                 if (result.consumesAction()) {
-                    feedCount++;
                     noteFoodConsumed(localPlayer, foodCounts);
                     if (adultFeedAttempt) {
                         rememberAdultFeed(animal, gameTime);
