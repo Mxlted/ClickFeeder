@@ -1,2 +1,18 @@
 {
+    "clickfeeder.settings.title": "ClickFeeder Settings",
+    "clickfeeder.settings.general": "General",
+    "clickfeeder.settings.enabled": "Enabled",
+    "clickfeeder.settings.enabled.tooltip": "Enable nearby feeding.",
+    "clickfeeder.settings.feedRadius": "Search radius",
+    "clickfeeder.settings.feedRadius.tooltip": "Search distance in blocks. Animals must still be visible and within normal interaction reach.",
+    "clickfeeder.settings.maxFeedsPerClick": "Animals per click",
+    "clickfeeder.settings.maxFeedsPerClick.tooltip": "Maximum number of animals to feed with one click.",
+    "clickfeeder.settings.switchHotbar": "Switch hotbar slots",
+    "clickfeeder.settings.switchHotbar.tooltip": "Use matching food from other hotbar slots.",
+    "clickfeeder.settings.restockInventory": "Restock from inventory",
+    "clickfeeder.settings.restockInventory.tooltip": "Move matching food from your inventory into the selected hotbar slot when needed.",
+    "clickfeeder.settings.feedBabies": "Feed baby animals",
+    "clickfeeder.settings.feedBabies.tooltip": "Allow food to be used to speed up baby animal growth.",
+    "clickfeeder.settings.sneakBypass": "Sneak to bypass",
+    "clickfeeder.settings.sneakBypass.tooltip": "Hold sneak to use food normally without nearby feeding."
 }

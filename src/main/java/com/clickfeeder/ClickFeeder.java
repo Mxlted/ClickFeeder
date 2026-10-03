@@ -40,6 +40,7 @@ public class ClickFeeder implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        SettingsStore.load();
         LOGGER.info("ClickFeeder initializing...");
 
         UseItemCallback.EVENT.register((player, world, hand) -> {

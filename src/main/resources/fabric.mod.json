@@ -10,7 +10,12 @@
     "license": "MIT",
     "environment": "client",
     "entrypoints": {
-        "client": ["com.clickfeeder.ClickFeeder"]
+        "client": ["com.clickfeeder.ClickFeeder"],
+        "modmenu": ["com.clickfeeder.config.ModMenuIntegration"]
+    },
+    "suggests": {
+        "modmenu": "*",
+        "cloth-config": "*"
     },
     "depends": {
         "fabricloader": ">=${loader_version}",
