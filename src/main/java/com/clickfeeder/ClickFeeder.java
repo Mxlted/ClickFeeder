@@ -1,6 +1,7 @@
 package com.clickfeeder;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -30,18 +31,23 @@ public class ClickFeeder implements ClientModInitializer {
     public static final String MOD_ID = "clickfeeder";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static final double FEED_RADIUS = 5.0;
-    private static final double FEED_RADIUS_SQR = FEED_RADIUS * FEED_RADIUS;
-    private static final int MAX_FEEDS_PER_CLICK = 20;
     private static final int HOTBAR_SIZE = Inventory.SELECTION_SIZE;
     private static final int INVENTORY_SIZE = Inventory.INVENTORY_SIZE;
-    private static final long ADULT_FEED_RETRY_DELAY_TICKS = 600L;
+    private static final long ADULT_FEED_RETRY_DELAY_TICKS = 40L;
     private static final Map<UUID, Long> RECENT_ADULT_FEEDS = new HashMap<>();
+    private static Level lastWorld;
 
     @Override
     public void onInitializeClient() {
         SettingsStore.load();
         LOGGER.info("ClickFeeder initializing...");
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (lastWorld != client.level || client.player == null) {
+                RECENT_ADULT_FEEDS.clear();
+                lastWorld = client.level;
+            }
+        });
 
         UseItemCallback.EVENT.register((player, world, hand) -> {
             if (hand != InteractionHand.MAIN_HAND || !world.isClientSide()) {
@@ -52,6 +58,11 @@ public class ClickFeeder implements ClientModInitializer {
                 return InteractionResult.PASS;
             }
 
+            Settings settings = SettingsStore.get();
+            if (!settings.enabled || (settings.sneakBypass && localPlayer.isShiftKeyDown())) {
+                return InteractionResult.PASS;
+            }
+
             ItemStack held = localPlayer.getMainHandItem();
             if (held.isEmpty()) {
                 return InteractionResult.PASS;
@@ -59,8 +70,15 @@ public class ClickFeeder implements ClientModInitializer {
 
             Minecraft mc = Minecraft.getInstance();
             MultiPlayerGameMode gameMode = mc.gameMode;
-            if (mc.player != localPlayer || gameMode == null || localPlayer.connection == null || gameMode.isSpectator()) {
+            if (mc.player != localPlayer || gameMode == null || localPlayer.connection == null
+                || gameMode.isSpectator() || !localPlayer.isAlive() || !mc.mouseHandler.isMouseGrabbed()
+                || localPlayer.isUsingItem() || localPlayer.containerMenu != localPlayer.inventoryMenu) {
                 return InteractionResult.PASS;
+            }
+
+            if (lastWorld != world) {
+                RECENT_ADULT_FEEDS.clear();
+                lastWorld = world;
             }
 
             Item foodItem = held.getItem();
@@ -74,7 +92,7 @@ public class ClickFeeder implements ClientModInitializer {
 
             int[] foodCounts = snapshotFoodCounts(localPlayer.getInventory(), foodItem);
             int availableFood = countAvailableFood(localPlayer, foodCounts);
-            int animalsToFeed = Math.min(animals.size(), Math.min(availableFood, MAX_FEEDS_PER_CLICK));
+            int animalsToFeed = Math.min(animals.size(), Math.min(availableFood, settings.maxFeedsPerClick));
 
             if (animalsToFeed == 0) {
                 return InteractionResult.PASS;
@@ -121,7 +139,7 @@ public class ClickFeeder implements ClientModInitializer {
     }
 
     private static List<Animal> findFeedableAnimals(Level world, LocalPlayer player, ItemStack food) {
-        AABB box = player.getBoundingBox().inflate(FEED_RADIUS);
+        AABB box = player.getBoundingBox().inflate(SettingsStore.get().feedRadius);
         List<Animal> animals = world.getEntitiesOfClass(
             Animal.class,
             box,
@@ -136,26 +154,36 @@ public class ClickFeeder implements ClientModInitializer {
     }
 
     private static boolean isTargetableAnimal(Animal animal, LocalPlayer player) {
+        int radius = SettingsStore.get().feedRadius;
         return animal.isAlive()
             && !animal.isRemoved()
-            && animal.distanceToSqr(player) <= FEED_RADIUS_SQR
+            && animal.distanceToSqr(player) <= radius * radius
+            && player.isWithinEntityInteractionRange(animal, 0.0)
+            && player.hasLineOfSight(animal)
             && canUseFoodOn(animal, player.level().getGameTime());
     }
 
     private static boolean canUseFoodOn(Animal animal, long gameTime) {
         if (animal.isBaby()) {
-            return false;
+            return SettingsStore.get().feedBabies && animal.canAgeUp();
         }
 
-        // Adult love/cooldown state is not fully synced to the client, so remember
-        // adult animals this client just fed and avoid immediately retrying them.
+        // A client interaction is not server confirmation. Keep the retry window
+        // short so a rejected feed does not block the animal for a full love cycle.
         return animal.canFallInLove()
             && !hasRecentAdultFeed(animal, gameTime);
     }
 
     private static int[] snapshotFoodCounts(Inventory inv, Item foodItem) {
+        Settings settings = SettingsStore.get();
         int[] foodCounts = new int[INVENTORY_SIZE];
         for (int i = 0; i < INVENTORY_SIZE; i++) {
+            if (i < HOTBAR_SIZE && i != inv.getSelectedSlot() && !settings.switchHotbar) {
+                continue;
+            }
+            if (i >= HOTBAR_SIZE && !settings.restockInventory) {
+                continue;
+            }
             ItemStack stack = inv.getItem(i);
             if (isFoodStack(stack, foodItem)) {
                 foodCounts[i] = stack.getCount();
@@ -166,7 +194,7 @@ public class ClickFeeder implements ClientModInitializer {
 
     private static int countAvailableFood(LocalPlayer player, int[] foodCounts) {
         if (player.hasInfiniteMaterials()) {
-            return MAX_FEEDS_PER_CLICK;
+            return SettingsStore.get().maxFeedsPerClick;
         }
 
         int count = 0;
@@ -188,9 +216,14 @@ public class ClickFeeder implements ClientModInitializer {
             return true;
         }
 
-        int hotbarSlot = findFoodInHotbar(inv, foodItem, foodCounts);
+        Settings settings = SettingsStore.get();
+        int hotbarSlot = settings.switchHotbar ? findFoodInHotbar(inv, foodItem, foodCounts) : -1;
         if (hotbarSlot >= 0) {
             return switchToSlot(player, hotbarSlot) && isFoodStack(player.getMainHandItem(), foodItem);
+        }
+
+        if (!settings.restockInventory) {
+            return false;
         }
 
         int inventorySlot = findFoodInInventory(inv, foodItem, foodCounts);
@@ -198,7 +231,7 @@ public class ClickFeeder implements ClientModInitializer {
             return false;
         }
 
-        int targetHotbarSlot = findBestHotbarSlot(inv, foodCounts);
+        int targetHotbarSlot = selected;
         if (!swapInventoryToHotbar(player, gameMode, inventorySlot, targetHotbarSlot)) {
             return false;
         }
@@ -234,28 +267,6 @@ public class ClickFeeder implements ClientModInitializer {
             }
         }
         return -1;
-    }
-
-    private static int findBestHotbarSlot(Inventory inv, int[] foodCounts) {
-        int selected = inv.getSelectedSlot();
-
-        if (isHotbarSlot(selected) && foodCounts[selected] <= 0) {
-            return selected;
-        }
-
-        for (int i = 0; i < HOTBAR_SIZE; i++) {
-            if (foodCounts[i] <= 0 && inv.getItem(i).isEmpty()) {
-                return i;
-            }
-        }
-
-        for (int i = 0; i < HOTBAR_SIZE; i++) {
-            if (i != selected && foodCounts[i] <= 0) {
-                return i;
-            }
-        }
-
-        return isHotbarSlot(selected) ? selected : 0;
     }
 
     private static boolean switchToSlot(LocalPlayer player, int slot) {
