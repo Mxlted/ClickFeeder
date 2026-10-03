@@ -1,17 +1,18 @@
 # ClickFeeder
 
-A client-side Fabric mod for Minecraft 26.x. Right-click with breeding food in your hand to feed eligible nearby adult animals within reach. Baby animals are ignored so food is not wasted speeding up growth. Automatic hotbar switching and inventory restocking keep you going without breaking flow.
+A client-side Fabric mod for Minecraft 26.x. Right-click with breeding food in your hand to feed eligible nearby adult animals within reach. Baby animals are ignored by default so food is not wasted speeding up growth. Automatic hotbar switching and inventory restocking keep you going without breaking flow.
 
 ## What it does
 
 - Hold any breeding food (wheat, carrots, seeds, beetroot, etc.)
 - Right-click into the air (the **Use Item** keybind)
-- Up to 20 eligible adult animals within a **5-block radius** get handled per click
-- Baby animals are skipped before food counting, hotbar switching, restocking, or interaction
+- Up to 20 eligible adult animals within a **5-block search radius** get handled per click by default
+- Animals must be visible and within normal interaction reach
+- Baby animals are skipped by default before food counting, hotbar switching, restocking, or interaction
 - Automatically switches between hotbar slots when your current stack runs out
 - Pulls matching food from your main inventory into the hotbar when needed
 - Cancels the original item-use when it handles a feed batch so edible food is not eaten after a stale target
-- Limits to 20 animals per click to prevent server overload
+- Adjust the search radius and batch size in the optional settings screen
 
 ## How it works
 
@@ -20,15 +21,31 @@ A client-side Fabric mod for Minecraft 26.x. Right-click with breeding food in y
 3. Feeds animals one by one, automatically restocking your hand:
    - First uses food already in hotbar slots
    - Then swaps food from main inventory into hotbar
-4. Skips adult animals this client just fed for the normal love-mode window
+4. Briefly skips adult animals this client just fed, allowing another attempt if the server rejected it
 5. Treats clicks with no valid adult targets as normal right-clicks
 6. Stops when all valid adults are handled or food runs out
+
+## Settings
+
+Install [Mod Menu](https://modrinth.com/mod/modmenu) and [Cloth Config](https://modrinth.com/mod/cloth-config) to open the settings screen. Both are optional; without them, a fresh install uses the defaults below.
+
+| Setting | Default |
+|---------|---------|
+| Enabled | On |
+| Search radius | 5 blocks (1–8) |
+| Animals per click | 20 (1–64) |
+| Switch hotbar slots | On |
+| Restock from inventory | On |
+| Feed baby animals | Off |
+| Sneak to bypass | Off |
+
+A larger search radius does not extend the server's interaction reach. Sneak to bypass lets you hold sneak to use food normally. Settings are saved in `config/clickfeeder.json` and still apply if the settings-screen mods are removed. You can also edit that file while the game is closed.
 
 ## Requirements
 
 | Component | Version |
 |-----------|---------|
-| Minecraft | 26.x |
+| Minecraft | 26.1, 26.1.1, 26.1.2, 26.2, 26.3 |
 | Fabric Loader | 0.19.3+ |
 | Fabric API | Compatible build for your Minecraft 26.x version |
 | Java | 25 |

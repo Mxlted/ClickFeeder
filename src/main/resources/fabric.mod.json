@@ -3,10 +3,14 @@
     "id": "clickfeeder",
     "version": "${version}",
     "name": "ClickFeeder",
-    "description": "Right-click with breeding food to feed eligible nearby adult animals in range. Ignores babies and auto-restocks from inventory when hotbar runs out.",
+    "description": "Right-click with breeding food to feed nearby adult animals. Includes hotbar switching, inventory restocking, and optional settings.",
     "icon": "assets/clickfeeder/icon.png",
-    "authors": ["User"],
-    "contact": {},
+    "authors": ["Mxlted"],
+    "contact": {
+        "homepage": "https://modrinth.com/mod/clickfeeder",
+        "sources": "https://github.com/Mxlted/ClickFeeder",
+        "issues": "https://github.com/Mxlted/ClickFeeder/issues"
+    },
     "license": "MIT",
     "environment": "client",
     "entrypoints": {

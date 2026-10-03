@@ -26,4 +26,3 @@ public class Settings {
         maxFeedsPerClick = Math.clamp(maxFeedsPerClick, 1, 64);
     }
 }
-

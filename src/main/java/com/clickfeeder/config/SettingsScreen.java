@@ -72,4 +72,3 @@ public final class SettingsScreen {
         return builder.build();
     }
 }
-
